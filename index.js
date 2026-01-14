@@ -73,16 +73,38 @@ for (let i = 0; i < actions.length; i++) {
   });
 }
 
+//kode baru
+
+const identity = {
+  gender: "female",
+  age_range: "mid 20s",
+  style: "hijab, earth tone",
+  motion_style: "calm, gentle",
+  voice: "warm, soft"
+};
+
+const enrichedScenes = scenes.map(scene => ({
+  ...scene,
+  character: {
+    id: character_id,
+    identity
+  }
+}));
+
+
+
     // ===== 5. RESPONSE =====
     return new Response(
-      JSON.stringify({
-        status: "accepted",
-        mode: "smart_silent",
-        scenes
-      }, null, 2),
-      {
-        headers: { "Content-Type": "application/json" }
-      }
-    );
+  JSON.stringify(
+    {
+      status: "accepted",
+      mode: "smart_silent",
+      scenes: enrichedScenes
+    },
+    null,
+    2
+  ),
+  {
+    headers: { "Content-Type": "application/json" }
   }
-};
+);
