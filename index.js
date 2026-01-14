@@ -1,56 +1,75 @@
 export default {
   async fetch(request, env) {
+    // ===== 1. METHOD CHECK =====
     if (request.method !== "POST") {
       return new Response("POST only", { status: 405 });
     }
 
-    const body = await request.json();
+    // ===== 2. PARSE BODY =====
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON" }),
+        { status: 400 }
+      );
+    }
 
-    // MODE: CREATE CHARACTER (SEKALI)
-    if (body.mode === "create_character") {
-      const exists = await env.CHAR_DB.get(body.character_id);
-      if (exists) {
-        return new Response(
-          JSON.stringify({ error: "Character already exists" }),
-          { status: 409 }
-        );
-      }
+    const {
+      character_id,
+      action,
+      object = null,
+      dialogue = null,
+      duration = 5
+    } = body;
 
-      await env.CHAR_DB.put(
-        body.character_id,
+    // ===== 3. BASIC VALIDATION =====
+    if (!character_id || !action) {
+      return new Response(
         JSON.stringify({
-          visual: "locked",
-          voice: "locked",
-          motion: "locked"
-        })
-      );
-
-      return new Response(
-        JSON.stringify({ status: "character_created" }),
-        { headers: { "Content-Type": "application/json" } }
+          error: "character_id and action are required"
+        }),
+        { status: 400 }
       );
     }
 
-    // MODE: GENERATE VIDEO
-    const character = await env.CHAR_DB.get(body.character_id);
-    if (!character) {
-      return new Response(
-        JSON.stringify({ error: "Unknown character_id" }),
-        { status: 404 }
-      );
+    // ===== 4. SMART SPLIT LOGIC =====
+
+    // Split actions by "lalu"
+    const actions = action
+      .split(" lalu ")
+      .map(a => a.trim())
+      .filter(Boolean);
+
+    // Split objects by "dan"
+    const objects = object
+      ? object.split(" dan ").map(o => o.trim())
+      : [];
+
+    const scenes = [];
+
+    for (let i = 0; i < actions.length; i++) {
+      scenes.push({
+        scene_id: `scene_${i + 1}`,
+        character_id,
+        action: actions[i],
+        object: objects[i] || objects[0] || null,
+        dialogue: i === actions.length - 1 ? dialogue : null,
+        duration
+      });
     }
 
+    // ===== 5. RESPONSE =====
     return new Response(
       JSON.stringify({
         status: "accepted",
-        character_id: body.character_id,
-        scene: body.scene,
-        action: body.action,
-        dialogue: body.dialogue || null,
-        character_profile: JSON.parse(character),
-        note: "Character loaded from KV. Ready for generation engine."
-      }),
-      { headers: { "Content-Type": "application/json" } }
+        mode: "smart_silent",
+        scenes
+      }, null, 2),
+      {
+        headers: { "Content-Type": "application/json" }
+      }
     );
   }
 };
