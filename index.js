@@ -1,4 +1,33 @@
 export default {
+function buildPrompt(scene) {
+  const { action, object, dialogue, character } = scene;
+  const identity = character.identity;
+
+  let prompt = `
+A realistic ${identity.ethnicity} woman, ${identity.age_range},
+${identity.appearance}.
+She performs the action: ${action}.
+`;
+
+  if (object) {
+    prompt += `The object involved is ${object}.\n`;
+  }
+
+  if (dialogue) {
+    prompt += `She says: "${dialogue}".\n`;
+  }
+
+  prompt += `
+Motion style: ${identity.motion_style}.
+Voice tone: ${identity.voice.tone}.
+Natural lighting, cinematic realism.
+`;
+
+  return prompt.trim();
+}
+}
+
+{
   async fetch(request, env) {
     if (request.method !== "POST") {
       return new Response("POST only", { status: 405 });
@@ -68,13 +97,20 @@ export default {
 
     const identity = JSON.parse(identityRaw);
 
-    const enrichedScenes = scenes.map(scene => ({
-      ...scene,
-      character: {
-        id: character_id,
-        identity
-      }
-    }));
+    const enrichedScenes = scenes.map(scene => {
+  const fullScene = {
+    ...scene,
+    character: {
+      id: character_id,
+      identity
+    }
+  };
+
+  return {
+    ...fullScene,
+    prompt: buildPrompt(fullScene)
+  };
+});
 
     // ===============================
     // RESPONSE
