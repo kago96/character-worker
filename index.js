@@ -108,3 +108,6 @@ const enrichedScenes = scenes.map(scene => ({
     headers: { "Content-Type": "application/json" }
   }
 );
+
+  }
+};
