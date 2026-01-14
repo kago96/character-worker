@@ -1,3 +1,7 @@
-name = "character-worker"
+name = "echo-character-api"
 main = "index.js"
 compatibility_date = "2024-01-01"
+
+kv_namespaces = [
+  { binding = "CHAR_DB", id = "95bc76e950bb4eb3b251e6cf6c0a0cf4" }
+]
