@@ -1,41 +1,45 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method !== "POST") {
       return new Response("POST only", { status: 405 });
     }
 
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response("Invalid JSON", { status: 400 });
-    }
+    const body = await request.json();
 
-    // === SCENE CONTRACT ===
-    const contract = {
-      required: ["character_id", "scene", "action"],
-      optional: ["dialogue"],
-      locked_character: true
-    };
-
-    for (const field of contract.required) {
-      if (!body[field]) {
+    // MODE: CREATE CHARACTER (SEKALI)
+    if (body.mode === "create_character") {
+      const exists = await env.CHAR_DB.get(body.character_id);
+      if (exists) {
         return new Response(
-          JSON.stringify({ error: `Missing field: ${field}` }),
-          { status: 400 }
+          JSON.stringify({ error: "Character already exists" }),
+          { status: 409 }
         );
       }
-    }
 
-    // === CHARACTER LOCK (sementara hardcoded) ===
-    if (body.character_id !== "NARA_001") {
+      await env.CHAR_DB.put(
+        body.character_id,
+        JSON.stringify({
+          visual: "locked",
+          voice: "locked",
+          motion: "locked"
+        })
+      );
+
       return new Response(
-        JSON.stringify({ error: "Unknown character_id" }),
-        { status: 403 }
+        JSON.stringify({ status: "character_created" }),
+        { headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // === OUTPUT TERSTRUKTUR (ANTI RANDOM) ===
+    // MODE: GENERATE VIDEO
+    const character = await env.CHAR_DB.get(body.character_id);
+    if (!character) {
+      return new Response(
+        JSON.stringify({ error: "Unknown character_id" }),
+        { status: 404 }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         status: "accepted",
@@ -43,11 +47,10 @@ export default {
         scene: body.scene,
         action: body.action,
         dialogue: body.dialogue || null,
-        note: "Scene contract enforced. Ready for generation engine."
+        character_profile: JSON.parse(character),
+        note: "Character loaded from KV. Ready for generation engine."
       }),
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
   }
 };
