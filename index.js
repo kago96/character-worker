@@ -49,16 +49,29 @@ export default {
 
     const scenes = [];
 
-    for (let i = 0; i < actions.length; i++) {
-      scenes.push({
-        scene_id: `scene_${i + 1}`,
-        character_id,
-        action: actions[i],
-        object: objects[i] || objects[0] || null,
-        dialogue: i === actions.length - 1 ? dialogue : null,
-        duration
-      });
-    }
+    let currentObject = null;
+
+for (let i = 0; i < actions.length; i++) {
+  const actionText = actions[i];
+
+  // detect object from action text
+  const detectedObject = objects.find(obj =>
+    actionText.includes(obj)
+  );
+
+  if (detectedObject) {
+    currentObject = detectedObject;
+  }
+
+  scenes.push({
+    scene_id: `scene_${i + 1}`,
+    character_id,
+    action: actionText,
+    object: currentObject,
+    dialogue: i === actions.length - 1 ? dialogue : null,
+    duration
+  });
+}
 
     // ===== 5. RESPONSE =====
     return new Response(
