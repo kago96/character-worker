@@ -1,5 +1,5 @@
 // ==========================
-// 1. UTILITIES
+// UTIL
 // ==========================
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -8,34 +8,43 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-function parseJSON(request) {
-  try {
-    return request.json();
-  } catch {
-    return null;
-  }
-}
-
 // ==========================
-// 2. PROMPT BUILDER (ENGINE-AGNOSTIC)
+// CORE IDENTITY (STATIC FOR MVP)
 // ==========================
-function buildScenePrompt(scene) {
-  return {
-    character_id: scene.character_id,
-    action: scene.action,
-    object: scene.object,
-    dialogue: scene.dialogue,
-    duration: scene.duration,
-    rules: {
-      max_objects: 1,
-      human_motion_only: true,
-      single_character: true
+const NARA_IDENTITY = {
+  character_id: "NARA_001",
+  immutable: {
+    gender: "female",
+    age_range: "23-25",
+    face: {
+      shape: "oval",
+      skin_tone: "light",
+      key_marker: "mole_on_right_nose"
+    },
+    body: {
+      height: "average",
+      posture: "relaxed"
+    },
+    voice: {
+      tone: "warm",
+      speed: "normal",
+      pitch: "medium"
+    },
+    persona: {
+      vibe: "calm_friendly",
+      energy: "soft"
     }
-  };
-}
+  },
+  mutable: {
+    wardrobe: ["hijab", "top", "outer"],
+    accessories: ["glasses", "watch"],
+    allowed_objects: ["coffee", "book", "phone"],
+    allowed_locations: ["cafe", "park", "indoor"]
+  }
+};
 
 // ==========================
-// 3. WORKER ENTRY POINT
+// WORKER
 // ==========================
 export default {
   async fetch(request, env) {
@@ -43,18 +52,20 @@ export default {
       return jsonResponse({ error: "POST only" }, 405);
     }
 
-    const body = await parseJSON(request);
-    if (!body || !Array.isArray(body.scenes)) {
-      return jsonResponse({ error: "Invalid scene format" }, 400);
-    }
+    // Simpan identity ke KV
+    await env.CHARACTER_DB.put(
+      "CHARACTER:NARA_001",
+      JSON.stringify(NARA_IDENTITY)
+    );
 
-    const processedScenes = body.scenes.map(scene => buildScenePrompt(scene));
+    // Ambil ulang untuk verifikasi
+    const stored = await env.CHARACTER_DB.get("CHARACTER:NARA_001", "json");
 
     return jsonResponse({
-      status: "accepted",
-      mode: body.mode || "smart",
-      scenes: processedScenes,
-      note: "Scenes validated and normalized. Ready for engine."
+      status: "stored",
+      character_id: "NARA_001",
+      identity: stored,
+      note: "Core identity stored and locked in KV."
     });
   }
 };
