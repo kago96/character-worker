@@ -2,6 +2,17 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+// Handle CORS preflight
+if (request.method === "OPTIONS") {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    }
+  });
+}
 // GET /character/:id
 if (request.method === "GET" && url.pathname.startsWith("/character/")) {
   const character_id = url.pathname.split("/")[2];
