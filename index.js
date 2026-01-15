@@ -52,7 +52,7 @@ export default {
     }
 
     /* ================================
-       ROUTE: GENERATE SCENES (SMART NORMALIZER)
+       ROUTE: GENERATE SCENES
        POST /scene/generate
     ================================= */
     if (url.pathname === "/scene/generate") {
@@ -67,7 +67,11 @@ export default {
 
       const identity = await env.CHARACTER_DB.get(character_id);
       if (!identity) {
-        return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
+        return error(
+          "CHARACTER_NOT_FOUND",
+          "Character belum diinisialisasi",
+          404
+        );
       }
 
       const normalizedScenes = [];
@@ -82,13 +86,13 @@ export default {
           );
         }
 
-        // Smart normalize (AMAN SAJA)
         normalizedScenes.push({
           character_id,
           action: action.trim(),
           object: object.trim(),
           dialogue: dialogue ?? null,
-          duration: duration ?? 5,
+          duration:
+            typeof duration === "number" && duration > 0 ? duration : 5,
           rules: {
             max_objects: 1,
             single_character: true,
@@ -101,85 +105,85 @@ export default {
         status: "accepted",
         mode: "smart_normalizer",
         scenes: normalizedScenes,
-        note: "Scenes validated and normalized. Ready for generation engine."
+        note: "Scenes validated and normalized. Ready for timeline."
       });
     }
 
+    /* ================================
+       ROUTE: BUILD TIMELINE
+       POST /timeline/build
+    ================================= */
+    if (url.pathname === "/timeline/build") {
+      const { character_id, scenes } = body;
 
-/* ================================
-   ROUTE: BUILD TIMELINE
-   POST /timeline/build
-================================ */
-if (url.pathname === "/timeline/build") {
-  const { character_id, scenes } = body;
-
-  if (!character_id || !Array.isArray(scenes)) {
-    return error(
-      "INVALID_TIMELINE_PAYLOAD",
-      "character_id dan scenes array wajib diisi"
-    );
-  }
-
-  // pastikan character ada
-  const identity = await env.CHARACTER_DB.get(character_id);
-  if (!identity) {
-    return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
-  }
-
-  let currentTime = 0;
-  const timeline = [];
-
-  for (let i = 0; i < scenes.length; i++) {
-    const scene = scenes[i];
-
-    const duration =
-      typeof scene.duration === "number" && scene.duration > 0
-        ? scene.duration
-        : 5;
-
-    const start = currentTime;
-    let end = start + duration;
-
-    let voice = null;
-
-    if (scene.dialogue) {
-      // voice planning sederhana (aman)
-      const voiceStart = start + 0.3;
-      const voiceEnd = Math.min(end - 0.2, voiceStart + 3);
-
-      // jika dialog kepanjangan → extend scene
-      if (voiceEnd >= end) {
-        end = voiceEnd + 0.2;
+      if (!character_id || !Array.isArray(scenes)) {
+        return error(
+          "INVALID_TIMELINE_PAYLOAD",
+          "character_id dan scenes array wajib diisi"
+        );
       }
 
-      voice = {
-        start: voiceStart,
-        end: voiceEnd,
-        lip_sync: true
-      };
+      const identity = await env.CHARACTER_DB.get(character_id);
+      if (!identity) {
+        return error(
+          "CHARACTER_NOT_FOUND",
+          "Character belum diinisialisasi",
+          404
+        );
+      }
+
+      let currentTime = 0;
+      const timeline = [];
+
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+
+        const duration =
+          typeof scene.duration === "number" && scene.duration > 0
+            ? scene.duration
+            : 5;
+
+        const start = currentTime;
+        let end = start + duration;
+
+        let voice = null;
+
+        if (scene.dialogue) {
+          const voiceStart = start + 0.3;
+          const voiceEnd = Math.min(end - 0.2, voiceStart + 3);
+
+          if (voiceEnd >= end) {
+            end = voiceEnd + 0.2;
+          }
+
+          voice = {
+            start: voiceStart,
+            end: voiceEnd,
+            lip_sync: true
+          };
+        }
+
+        timeline.push({
+          scene_index: i + 1,
+          start,
+          end,
+          action: scene.action,
+          object: scene.object,
+          dialogue: scene.dialogue ?? null,
+          voice
+        });
+
+        currentTime = end;
+      }
+
+      return json({
+        status: "ready",
+        character_id,
+        total_duration: currentTime,
+        timeline,
+        note: "Timeline built. Safe for voice & video engines."
+      });
     }
-
-    timeline.push({
-      scene_index: i + 1,
-      start,
-      end,
-      action: scene.action,
-      object: scene.object,
-      dialogue: scene.dialogue ?? null,
-      voice
-    });
-
-    currentTime = end;
-  }
-
-  return json({
-    status: "ready",
-    character_id,
-    total_duration: currentTime,
-    timeline,
-    note: "Timeline built. Safe for voice & video engines."
-  });
-}
 
     /* ================================
        FALLBACK
