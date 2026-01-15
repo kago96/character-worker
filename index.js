@@ -67,11 +67,7 @@ export default {
 
       const identity = await env.CHARACTER_DB.get(character_id);
       if (!identity) {
-        return error(
-          "CHARACTER_NOT_FOUND",
-          "Character belum diinisialisasi",
-          404
-        );
+        return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
       }
 
       const normalizedScenes = [];
@@ -87,25 +83,17 @@ export default {
         }
 
         normalizedScenes.push({
-          character_id,
           action: action.trim(),
           object: object.trim(),
           dialogue: dialogue ?? null,
-          duration:
-            typeof duration === "number" && duration > 0 ? duration : 5,
-          rules: {
-            max_objects: 1,
-            single_character: true,
-            human_motion_only: true
-          }
+          duration: duration ?? 5
         });
       }
 
       return json({
         status: "accepted",
-        mode: "smart_normalizer",
         scenes: normalizedScenes,
-        note: "Scenes validated and normalized. Ready for timeline."
+        note: "Scenes validated and normalized."
       });
     }
 
@@ -125,11 +113,7 @@ export default {
 
       const identity = await env.CHARACTER_DB.get(character_id);
       if (!identity) {
-        return error(
-          "CHARACTER_NOT_FOUND",
-          "Character belum diinisialisasi",
-          404
-        );
+        return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
       }
 
       let currentTime = 0;
@@ -137,7 +121,6 @@ export default {
 
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
-
         const duration =
           typeof scene.duration === "number" && scene.duration > 0
             ? scene.duration
@@ -147,14 +130,11 @@ export default {
         let end = start + duration;
 
         let voice = null;
-
         if (scene.dialogue) {
           const voiceStart = start + 0.3;
           const voiceEnd = Math.min(end - 0.2, voiceStart + 3);
 
-          if (voiceEnd >= end) {
-            end = voiceEnd + 0.2;
-          }
+          if (voiceEnd >= end) end = voiceEnd + 0.2;
 
           voice = {
             start: voiceStart,
@@ -182,6 +162,48 @@ export default {
         total_duration: currentTime,
         timeline,
         note: "Timeline built. Safe for voice & video engines."
+      });
+    }
+
+    /* ================================
+       ROUTE: ENGINE PREPARE
+       POST /engine/prepare
+       (A: ONLY accepts built timeline)
+    ================================= */
+    if (url.pathname === "/engine/prepare") {
+      const { character_id, timeline } = body;
+
+      if (!character_id || !Array.isArray(timeline)) {
+        return error(
+          "INVALID_ENGINE_PAYLOAD",
+          "character_id dan timeline array wajib diisi"
+        );
+      }
+
+      const identity = await env.CHARACTER_DB.get(character_id);
+      if (!identity) {
+        return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
+      }
+
+      const engineScenes = timeline.map((scene) => ({
+        time: { start: scene.start, end: scene.end },
+        character: character_id,
+        motion: scene.action,
+        object: scene.object,
+        dialogue: scene.dialogue,
+        voice: scene.voice,
+        camera: {
+          type: "static",
+          shot: "medium"
+        }
+      }));
+
+      return json({
+        status: "engine_ready",
+        engine: "video_voice_v1",
+        character_id,
+        scenes: engineScenes,
+        note: "Final engine contract generated."
       });
     }
 
