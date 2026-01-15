@@ -105,6 +105,82 @@ export default {
       });
     }
 
+
+/* ================================
+   ROUTE: BUILD TIMELINE
+   POST /timeline/build
+================================ */
+if (url.pathname === "/timeline/build") {
+  const { character_id, scenes } = body;
+
+  if (!character_id || !Array.isArray(scenes)) {
+    return error(
+      "INVALID_TIMELINE_PAYLOAD",
+      "character_id dan scenes array wajib diisi"
+    );
+  }
+
+  // pastikan character ada
+  const identity = await env.CHARACTER_DB.get(character_id);
+  if (!identity) {
+    return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
+  }
+
+  let currentTime = 0;
+  const timeline = [];
+
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+
+    const duration =
+      typeof scene.duration === "number" && scene.duration > 0
+        ? scene.duration
+        : 5;
+
+    const start = currentTime;
+    let end = start + duration;
+
+    let voice = null;
+
+    if (scene.dialogue) {
+      // voice planning sederhana (aman)
+      const voiceStart = start + 0.3;
+      const voiceEnd = Math.min(end - 0.2, voiceStart + 3);
+
+      // jika dialog kepanjangan → extend scene
+      if (voiceEnd >= end) {
+        end = voiceEnd + 0.2;
+      }
+
+      voice = {
+        start: voiceStart,
+        end: voiceEnd,
+        lip_sync: true
+      };
+    }
+
+    timeline.push({
+      scene_index: i + 1,
+      start,
+      end,
+      action: scene.action,
+      object: scene.object,
+      dialogue: scene.dialogue ?? null,
+      voice
+    });
+
+    currentTime = end;
+  }
+
+  return json({
+    status: "ready",
+    character_id,
+    total_duration: currentTime,
+    timeline,
+    note: "Timeline built. Safe for voice & video engines."
+  });
+}
+
     /* ================================
        FALLBACK
     ================================= */
