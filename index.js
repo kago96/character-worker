@@ -25,7 +25,6 @@ if (request.method === "GET" && url.pathname.startsWith("/character/")) {
     { headers: { "Content-Type": "application/json" } }
   );
 }
-const url = new URL(request.url);
 
     // Only POST allowed
     if (request.method !== "POST") {
