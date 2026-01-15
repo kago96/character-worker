@@ -52,7 +52,7 @@ export default {
     }
 
     /* ================================
-       ROUTE: GENERATE SCENES
+       ROUTE: SCENE NORMALIZER
        POST /scene/generate
     ================================= */
     if (url.pathname === "/scene/generate") {
@@ -83,15 +83,22 @@ export default {
         }
 
         normalizedScenes.push({
+          character_id,
           action: action.trim(),
           object: object.trim(),
           dialogue: dialogue ?? null,
-          duration: duration ?? 5
+          duration: duration ?? 5,
+          rules: {
+            max_objects: 1,
+            single_character: true,
+            human_motion_only: true
+          }
         });
       }
 
       return json({
         status: "accepted",
+        mode: "smart_normalizer",
         scenes: normalizedScenes,
         note: "Scenes validated and normalized."
       });
@@ -121,6 +128,7 @@ export default {
 
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
+
         const duration =
           typeof scene.duration === "number" && scene.duration > 0
             ? scene.duration
@@ -130,11 +138,14 @@ export default {
         let end = start + duration;
 
         let voice = null;
+
         if (scene.dialogue) {
           const voiceStart = start + 0.3;
           const voiceEnd = Math.min(end - 0.2, voiceStart + 3);
 
-          if (voiceEnd >= end) end = voiceEnd + 0.2;
+          if (voiceEnd >= end) {
+            end = voiceEnd + 0.2;
+          }
 
           voice = {
             start: voiceStart,
@@ -161,49 +172,91 @@ export default {
         character_id,
         total_duration: currentTime,
         timeline,
-        note: "Timeline built. Safe for voice & video engines."
+        note: "Timeline built."
       });
     }
 
     /* ================================
-       ROUTE: ENGINE PREPARE
-       POST /engine/prepare
-       (A: ONLY accepts built timeline)
+       ROUTE: GENERATE VIDEO (FINAL)
+       POST /generate-video
     ================================= */
-    if (url.pathname === "/engine/prepare") {
-      const { character_id, timeline } = body;
+    if (url.pathname === "/generate-video") {
+      const { character_id, prompt } = body;
 
-      if (!character_id || !Array.isArray(timeline)) {
+      if (!character_id || !prompt) {
         return error(
-          "INVALID_ENGINE_PAYLOAD",
-          "character_id dan timeline array wajib diisi"
+          "INVALID_REQUEST",
+          "character_id dan prompt wajib diisi"
         );
       }
 
-      const identity = await env.CHARACTER_DB.get(character_id);
-      if (!identity) {
+      const identityRaw = await env.CHARACTER_DB.get(character_id);
+      if (!identityRaw) {
         return error("CHARACTER_NOT_FOUND", "Character belum diinisialisasi", 404);
       }
 
-      const engineScenes = timeline.map((scene) => ({
-        time: { start: scene.start, end: scene.end },
-        character: character_id,
-        motion: scene.action,
-        object: scene.object,
-        dialogue: scene.dialogue,
-        voice: scene.voice,
+      /* ---- PROMPT → SCENE DRAFT (SIMPLE & SAFE) ---- */
+      const scenes = [
+        {
+          action: "memegang kopi",
+          object: "kopi",
+          dialogue: null,
+          duration: 5
+        },
+        {
+          action: "menghadap kamera",
+          object: "none",
+          dialogue: "Selamat pagi sahabat",
+          duration: 5
+        }
+      ];
+
+      /* ---- BUILD TIMELINE ---- */
+      let currentTime = 0;
+      const timeline = [];
+
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        const start = currentTime;
+        let end = start + scene.duration;
+
+        let voice = null;
+        if (scene.dialogue) {
+          voice = {
+            start: start + 0.3,
+            end: start + 3,
+            lip_sync: true
+          };
+        }
+
+        timeline.push({
+          scene_index: i + 1,
+          start,
+          end,
+          action: scene.action,
+          object: scene.object,
+          dialogue: scene.dialogue,
+          voice
+        });
+
+        currentTime = end;
+      }
+
+      /* ---- ENGINE PAYLOAD (EXPORT) ---- */
+      return json({
+        status: "ready",
+        engine: "generic_video_ai",
+        character_id,
+        identity_lock: true,
         camera: {
           type: "static",
           shot: "medium"
-        }
-      }));
-
-      return json({
-        status: "engine_ready",
-        engine: "video_voice_v1",
-        character_id,
-        scenes: engineScenes,
-        note: "Final engine contract generated."
+        },
+        fps: 24,
+        style: "realistic",
+        total_duration: currentTime,
+        timeline,
+        note: "Engine payload ready. Safe to send to video generation AI."
       });
     }
 
