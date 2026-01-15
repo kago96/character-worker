@@ -2,6 +2,31 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+// GET /character/:id
+if (request.method === "GET" && url.pathname.startsWith("/character/")) {
+  const character_id = url.pathname.split("/")[2];
+
+  if (!character_id) {
+    return jsonError("INVALID_REQUEST", "character_id wajib diisi", 400);
+  }
+
+  const data = await env.CHARACTER_DB.get(character_id);
+
+  if (!data) {
+    return jsonError("NOT_FOUND", "Character tidak ditemukan", 404);
+  }
+
+  return new Response(
+    JSON.stringify({
+      status: "ok",
+      character_id,
+      identity: JSON.parse(data)
+    }),
+    { headers: { "Content-Type": "application/json" } }
+  );
+}
+const url = new URL(request.url);
+
     // Only POST allowed
     if (request.method !== "POST") {
       return jsonResponse(
